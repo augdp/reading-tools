@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from tts_preprocess.extract import extract_pages
 from tts_preprocess.pages import parse_page_range
 
 
@@ -41,11 +42,18 @@ def main() -> int:
 
     try:
         page_indexes = parse_page_range(args.pages)
+        text = extract_pages(args.input_pdf, page_indexes)
     except ValueError as error:
         parser.error(str(error))
+    except FileNotFoundError as error:
+        parser.error(str(error))
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(text, encoding="utf-8")
 
     print(f"Input PDF: {args.input_pdf}")
+    print(f"Pages: {args.pages}")
     print(f"Output: {args.output}")
-    print(f"Zero-based page indexes: {page_indexes}")
+    print(f"Characters written: {len(text)}")
 
     return 0
