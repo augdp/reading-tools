@@ -12,5 +12,10 @@ Module: `tts_preprocess`
 
 Commands: `prepare-for-audiobook book.mp3 [args]`
 
-status: not done.
+[args]:
+- `--pages n-m` to get the document (not content) pages from `n` to `m` inclusive
+- `--start "the actual first words of the section"` - inclusive
+- `--end "the actual first words of the next section"` - exclusive
+- `--ignore-case` - just if you can't copy-paste it
 
+status: not done.

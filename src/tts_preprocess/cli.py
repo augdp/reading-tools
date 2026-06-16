@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tts_preprocess.extract import extract_pages
 from tts_preprocess.pages import parse_page_range
+from tts_preprocess.trim import trim_to_markers
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,6 +27,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--start",
+        help="Phrase where the output text should begin.",
+    )
+
+    parser.add_argument(
+        "--end",
+        help="Phrase where the output text should stop.",
+    )
+
+    parser.add_argument(
+        "--ignore-case",
+        action="store_true",
+        help="Match --start and --end without caring about capitalization.",
+    )
+
+    parser.add_argument(
+        "--include-end",
+        action="store_true",
+        help="Keep the --end phrase in the output text.",
+    )
+
+    parser.add_argument(
         "-o",
         "--output",
         type=Path,
@@ -42,7 +65,17 @@ def main() -> int:
 
     try:
         page_indexes = parse_page_range(args.pages)
+
         text = extract_pages(args.input_pdf, page_indexes)
+
+        text = trim_to_markers(
+            text,
+            start=args.start,
+            end=args.end,
+            ignore_case=args.ignore_case,
+            include_end=args.include_end,
+        )
+
     except ValueError as error:
         parser.error(str(error))
     except FileNotFoundError as error:
