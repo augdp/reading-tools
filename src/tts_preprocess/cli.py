@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from tts_preprocess.clean import clean_text
 from tts_preprocess.extract import extract_pages
 from tts_preprocess.pages import parse_page_range
 from tts_preprocess.trim import trim_to_markers
@@ -49,6 +50,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="Skip text cleanup and write the extracted/trimmed text as-is.",
+    )
+
+    parser.add_argument(
+        "--keep-page-numbers",
+        action="store_true",
+        help="Do not remove standalone page numbers during cleanup.",
+    )
+
+    parser.add_argument(
+        "--keep-line-breaks",
+        action="store_true",
+        help="Do not unwrap PDF line breaks into paragraphs during cleanup.",
+    )
+
+    parser.add_argument(
         "-o",
         "--output",
         type=Path,
@@ -76,6 +95,13 @@ def main() -> int:
             include_end=args.include_end,
         )
 
+        if not args.no_clean:
+            text = clean_text(
+                text,
+                remove_page_numbers=not args.keep_page_numbers,
+                unwrap=not args.keep_line_breaks,
+            )
+
     except ValueError as error:
         parser.error(str(error))
     except FileNotFoundError as error:
@@ -87,6 +113,7 @@ def main() -> int:
     print(f"Input PDF: {args.input_pdf}")
     print(f"Pages: {args.pages}")
     print(f"Output: {args.output}")
+    print(f"Cleanup: {'disabled' if args.no_clean else 'enabled'}")
     print(f"Characters written: {len(text)}")
 
     return 0
