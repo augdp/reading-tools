@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from tts_preprocess.pipeline import PrepareOptions, run_pipeline
+from tts_preprocess.preview import render_preview
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +66,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Print a preview of the prepared text after writing the output file.",
+    )
+
+    parser.add_argument(
+        "--preview-chars",
+        type=int,
+        default=1000,
+        help="Number of characters to show in preview mode. Default: 1000.",
+    )
+
+    parser.add_argument(
         "-o",
         "--output",
         type=Path,
@@ -94,6 +108,12 @@ def main() -> int:
 
     try:
         result = run_pipeline(options)
+
+        if args.preview:
+            preview = render_preview(result.text, max_chars=args.preview_chars)
+        else:
+            preview = None
+
     except ValueError as error:
         parser.error(str(error))
     except FileNotFoundError as error:
@@ -105,5 +125,9 @@ def main() -> int:
     print(f"Cleanup: {'enabled' if result.cleanup_enabled else 'disabled'}")
     print(f"Characters written: {result.characters_written}")
     print(f"Words written: {result.words_written}")
+
+    if preview:
+        print()
+        print(preview)
 
     return 0
