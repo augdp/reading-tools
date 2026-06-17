@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tts_preprocess.clean import clean_text
-from tts_preprocess.extract import extract_pages
+from tts_preprocess.extract import extract_pages_with_numbers
+from tts_preprocess.page_clean import (
+    join_extracted_pages,
+    remove_repeated_marginal_lines,
+    remove_repeated_marginal_lines_by_parity,
+)
 from tts_preprocess.pages import parse_page_range
 from tts_preprocess.trim import trim_to_markers
 
@@ -21,6 +26,10 @@ class PrepareOptions:
     clean: bool = True
     remove_page_numbers: bool = True
     unwrap: bool = True
+    remove_headers_footers: bool = True
+    remove_parity_headers_footers: bool = True
+    header_footer_top_lines: int = 3
+    header_footer_bottom_lines: int = 3
 
 
 @dataclass(frozen=True)
@@ -31,6 +40,8 @@ class PrepareResult:
     page_indexes: tuple[int, ...]
     text: str
     cleanup_enabled: bool
+    header_footer_cleanup_enabled: bool
+    parity_header_footer_cleanup_enabled: bool
 
     @property
     def characters_written(self) -> int:
@@ -54,11 +65,36 @@ def prepare_text(options: PrepareOptions) -> PrepareResult:
     """
     Prepare audiobook-friendly text from a PDF without writing it yet.
 
-    This is useful for tests and future preview/debug features.
+    Pipeline:
+    1. parse page range
+    2. extract selected pages
+    3. remove repeated page headers/footers
+    4. join pages into one text
+    5. trim start/end markers
+    6. clean text for TTS
     """
     page_indexes = tuple(parse_page_range(options.pages))
 
-    text = extract_pages(options.input_pdf, list(page_indexes))
+    extracted_pages = extract_pages_with_numbers(
+        options.input_pdf,
+        list(page_indexes),
+    )
+
+    if options.remove_headers_footers:
+        extracted_pages = remove_repeated_marginal_lines(
+            extracted_pages,
+            top_lines=options.header_footer_top_lines,
+            bottom_lines=options.header_footer_bottom_lines,
+        )
+
+    if options.remove_parity_headers_footers:
+        extracted_pages = remove_repeated_marginal_lines_by_parity(
+            extracted_pages,
+            top_lines=options.header_footer_top_lines,
+            bottom_lines=options.header_footer_bottom_lines,
+        )
+
+    text = join_extracted_pages(extracted_pages)
 
     text = trim_to_markers(
         text,
@@ -82,6 +118,8 @@ def prepare_text(options: PrepareOptions) -> PrepareResult:
         page_indexes=page_indexes,
         text=text,
         cleanup_enabled=options.clean,
+        header_footer_cleanup_enabled=options.remove_headers_footers,
+        parity_header_footer_cleanup_enabled=options.remove_parity_headers_footers,
     )
 
 

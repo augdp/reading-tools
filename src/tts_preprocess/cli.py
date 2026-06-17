@@ -66,6 +66,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--keep-headers-footers",
+        action="store_true",
+        help="Do not remove repeated page headers and footers.",
+    )
+
+    parser.add_argument(
+        "--keep-parity-headers-footers",
+        action="store_true",
+        help="Do not remove repeated odd/even page headers and footers.",
+    )
+
+    parser.add_argument(
+        "--header-lines",
+        type=int,
+        default=3,
+        help="Number of top non-empty lines to check for repeated headers. Default: 3.",
+    )
+
+    parser.add_argument(
+        "--footer-lines",
+        type=int,
+        default=3,
+        help="Number of bottom non-empty lines to check for repeated footers. Default: 3.",
+    )
+
+    parser.add_argument(
         "--preview",
         action="store_true",
         help="Print a preview of the prepared text after writing the output file.",
@@ -104,6 +130,10 @@ def main() -> int:
         clean=not args.no_clean,
         remove_page_numbers=not args.keep_page_numbers,
         unwrap=not args.keep_line_breaks,
+        remove_headers_footers=not args.keep_headers_footers,
+        remove_parity_headers_footers=not args.keep_parity_headers_footers,
+        header_footer_top_lines=args.header_lines,
+        header_footer_bottom_lines=args.footer_lines,
     )
 
     try:
@@ -123,6 +153,14 @@ def main() -> int:
     print(f"Pages: {result.pages}")
     print(f"Output: {result.output}")
     print(f"Cleanup: {'enabled' if result.cleanup_enabled else 'disabled'}")
+    print(
+        "Header/footer cleanup: "
+        f"{'enabled' if result.header_footer_cleanup_enabled else 'disabled'}"
+    )
+    print(
+        "Odd/even header/footer cleanup: "
+        f"{'enabled' if result.parity_header_footer_cleanup_enabled else 'disabled'}"
+    )
     print(f"Characters written: {result.characters_written}")
     print(f"Words written: {result.words_written}")
 
