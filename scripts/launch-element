@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  launch-element --desktop N --tile-point X,Y ELEMENT [-- ELEMENT_ARGS...]
+
+Elements:
+  editor   Opens the configured editor
+  console  Opens a terminal window
+  reader   Opens the configured document reader
+
+Examples:
+  ./scripts/launch-element --desktop 2 --tile-point 75,50 console
+
+  ./scripts/launch-element --desktop 2 --tile-point 25,50 editor -- README.md
+
+  ./scripts/launch-element --desktop 2 --tile-point 50,50 reader -- docs/paper.pdf
+EOF
+}
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCH_WINDOW="${LAUNCH_WINDOW:-"$SCRIPT_DIR/launch-window"}"
+
+desktop=""
+tile_point=""
+element=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --desktop)
+            desktop="${2:-}"
+            shift 2
+            ;;
+        --desktop=*)
+            desktop="${1#*=}"
+            shift
+            ;;
+        --tile-point)
+            tile_point="${2:-}"
+            shift 2
+            ;;
+        --tile-point=*)
+            tile_point="${1#*=}"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "launch-element: unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            element="$1"
+            shift
+            break
+            ;;
+    esac
+done
+
+if [[ -z "$desktop" ]]; then
+    echo "launch-element: missing --desktop" >&2
+    usage >&2
+    exit 2
+fi
+
+if [[ -z "$tile_point" ]]; then
+    echo "launch-element: missing --tile-point" >&2
+    usage >&2
+    exit 2
+fi
+
+if [[ -z "$element" ]]; then
+    echo "launch-element: missing element: editor, console, or reader" >&2
+    usage >&2
+    exit 2
+fi
+
+if [[ ! -x "$LAUNCH_WINDOW" ]]; then
+    echo "launch-element: launch-window not found or not executable: $LAUNCH_WINDOW" >&2
+    exit 1
+fi
+
+# Optional separator between the element name and the app-specific args.
+#
+# Both are accepted:
+#   launch-element ... editor README.md
+#   launch-element ... editor -- README.md
+if [[ "${1:-}" == "--" ]]; then
+    shift
+fi
+
+element_args=("$@")
+
+case "$element" in
+    editor)
+        # Change this later if you prefer code, kate, nvim-qt, etc.
+        launch_command=(kate "${element_args[@]}")
+        ;;
+
+    console)
+        # --separate ensures Konsole creates a separate top-level window.
+        launch_command=(konsole --separate "${element_args[@]}")
+        ;;
+
+    reader)
+        # Okular is KDE's default document reader.
+        launch_command=(okular "${element_args[@]}")
+        ;;
+
+    *)
+        echo "launch-element: unknown element: $element" >&2
+        echo "Known elements: editor, console, reader" >&2
+        exit 2
+        ;;
+esac
+
+"$LAUNCH_WINDOW" \
+    --desktop "$desktop" \
+    --tile-point "$tile_point" \
+    -- "${launch_command[@]}"
