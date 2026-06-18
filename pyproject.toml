@@ -18,6 +18,7 @@ dev = [
 
 [project.scripts]
 prepare-for-audiobook = "tts_preprocess.cli:main"
+generate-audiobook = "tts_generation.cli:main"
 
 [dependency-groups]
 dev = [
