@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+desktop=""
+tile_point=""
+delay="1"
+
+usage() {
+    echo "usage: kwin-launch-tile --desktop DESKTOP --tile-point X,Y [--delay SECONDS] -- COMMAND [ARGS...]"
+    exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --desktop)
+            desktop="${2:?missing desktop}"
+            shift 2
+            ;;
+        --tile-point)
+            tile_point="${2:?missing tile point}"
+            shift 2
+            ;;
+        --delay)
+            delay="${2:?missing delay}"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
+[[ -n "$desktop" ]] || usage
+[[ -n "$tile_point" ]] || usage
+[[ $# -gt 0 ]] || usage
+
+IFS=',' read -r x_percent y_percent <<< "$tile_point"
+
+[[ -n "$x_percent" && -n "$y_percent" ]] || usage
+
+"$@" &
+target_pid=$!
+
+echo "Launched PID: $target_pid"
+
+sleep "$delay"
+
+script="/tmp/kwin-launch-tile-${target_pid}.js"
+script_name="launch-tile-${target_pid}"
+
+cat > "$script" <<EOF
+const targetPid = Number("$target_pid");
+const desktopArg = "$desktop";
+const xPercent = Number("$x_percent");
+const yPercent = Number("$y_percent");
+
+function rectString(r) {
+    return "x=" + r.x + " y=" + r.y + " w=" + r.width + " h=" + r.height;
+}
+
+function resolveDesktop(arg) {
+    const asNumber = Number(arg);
+
+    if (!Number.isNaN(asNumber) && String(asNumber) === arg) {
+        const index = asNumber - 1;
+        if (index >= 0 && index < workspace.desktops.length) {
+            return workspace.desktops[index];
+        }
+        return null;
+    }
+
+    for (const d of workspace.desktops) {
+        if (d.name === arg) {
+            return d;
+        }
+    }
+
+    return null;
+}
+
+print("kwin-launch-tile");
+print("Looking for PID:", targetPid);
+print("Target desktop:", desktopArg);
+print("Target tile point:", xPercent + "%", yPercent + "%");
+
+const targetDesktop = resolveDesktop(desktopArg);
+
+if (!targetDesktop) {
+    print("ERROR: desktop not found:", desktopArg);
+    print("Available desktops:");
+    for (const d of workspace.desktops) {
+        print("-", d.name);
+    }
+} else {
+    let found = null;
+
+    for (const w of workspace.stackingOrder) {
+        if (Number(w.pid) === targetPid) {
+            found = w;
+            break;
+        }
+    }
+
+    if (!found) {
+        print("ERROR: no window found for PID:", targetPid);
+    } else {
+        print("MATCH:", found.caption);
+        print("resourceClass:", found.resourceClass);
+        print("desktopFileName:", found.desktopFileName);
+
+        found.desktops = [targetDesktop];
+        print("Moved to desktop:", targetDesktop.name);
+
+        const output = found.output;
+        print("Output:", output.name);
+        print("Output geometry:", rectString(output.geometry));
+
+        const manager = workspace.tilingForScreen(output);
+
+        if (!manager) {
+            print("ERROR: no tile manager for output:", output.name);
+        } else {
+            const x = output.geometry.width * xPercent / 100;
+            const y = output.geometry.height * yPercent / 100;
+
+            const tile = manager.bestTileForPosition(x, y);
+
+            if (!tile) {
+                print("ERROR: no tile found near point:", x, y);
+            } else {
+                print("Selected tile:", rectString(tile.absoluteGeometryInScreen));
+
+                found.setMaximize(false, false);
+                found.tile = tile;
+
+                print("Window assigned to tile.");
+                print("Window tile now:", found.tile ? rectString(found.tile.absoluteGeometryInScreen) : "none");
+            }
+        }
+    }
+}
+EOF
+
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$script" "$script_name"
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start
+qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript "$script_name"
+
+rm -f "$script"
