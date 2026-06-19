@@ -1,0 +1,26 @@
+{
+  "desktop": 2,
+
+  "settings": {
+    "terminal_path": "/home/augdp/projects/reading-tools",
+    "editor_folder": "/home/augdp/storage/reading/sections"
+  },
+
+  "windows": [
+    {
+      "name": "terminal",
+      "tile_point": "90,90",
+      "command": ["konsole", "--separate", "--workdir", "{terminal_path}"]
+    },
+    {
+      "name": "reader",
+      "tile_point": "10,50",
+      "command": ["okular", "{file}"]
+    },
+    {
+      "name": "editor",
+      "tile_point": "90,10",
+      "command": ["kate", "-s reading-notes" ,"{editor_folder}"]
+    }
+  ]
+}

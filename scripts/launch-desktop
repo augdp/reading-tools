@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+def load_config(path: Path) -> dict:
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"Config file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON in config file: {path}", file=sys.stderr)
+        print(f"{e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def expand_command(command: list[str], values: dict[str, str]) -> list[str]:
+    expanded = []
+
+    for part in command:
+        try:
+            expanded.append(part.format(**values))
+        except KeyError as e:
+            missing = e.args[0]
+            print(f"Missing config value for placeholder: {{{missing}}}", file=sys.stderr)
+            sys.exit(1)
+
+    return expanded
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Launch a configured virtual desktop layout."
+    )
+
+    parser.add_argument(
+        "file",
+        help="File to open in the configured reader window.",
+    )
+
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to desktop layout config.",
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print launch-window calls without running them.",
+    )
+
+    args = parser.parse_args()
+
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+
+    launch_window = script_dir / "launch-window"
+
+    config_path = (
+        Path(args.config).expanduser().resolve()
+        if args.config
+        else project_root / "config" / "reading-desktop.json"
+    )
+
+    config = load_config(config_path)
+
+    try:
+        desktop = str(config["desktop"])
+        windows = config["windows"]
+    except KeyError as e:
+        print(f"Missing required config key: {e.args[0]}", file=sys.stderr)
+        return 1
+
+    settings = config.get("settings", {})
+
+    file_path = Path(args.file).expanduser().resolve()
+
+    values = {
+        "file": str(file_path),
+        "file_dir": str(file_path.parent),
+        "file_name": file_path.name,
+        "file_stem": file_path.stem,
+        **{k: str(v) for k, v in settings.items()},
+    }
+
+    for window in windows:
+        try:
+            name = window["name"]
+            tile_point = window["tile_point"]
+            app_command_template = window["command"]
+        except KeyError as e:
+            print(f"Window config is missing key: {e.args[0]}", file=sys.stderr)
+            return 1
+
+        app_command = expand_command(app_command_template, values)
+
+        full_command = [
+            str(launch_window),
+            "--desktop",
+            desktop,
+            "--tile-point",
+            tile_point,
+            "--",
+            *app_command,
+        ]
+
+        if args.dry_run:
+            print(" ".join(full_command))
+            continue
+
+        print(f"Launching {name}: {' '.join(app_command)}")
+        subprocess.run(full_command, check=True)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
